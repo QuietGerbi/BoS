@@ -11,7 +11,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "/Users/hulio_barbaris/Documents/\u0443\u0447\u0435\u0431\u0430/\u043c\u043e\u0435/\u0432\u0443\u0437/3 \u043a\u0443\u0440\u0441/BoS/cmake-build-debug"
+			"value" : "/Users/hulio_barbaris/Documents/\u0443\u0447\u0435\u0431\u0430/\u043c\u043e\u0435/\u0432\u0443\u0437/3 \u043a\u0443\u0440\u0441/BoS/labs/cmake-build-debug"
 		},
 		{
 			"name" : "1_vol_IS_TOP_LEVEL",
@@ -35,7 +35,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "/Users/hulio_barbaris/Documents/\u0443\u0447\u0435\u0431\u0430/\u043c\u043e\u0435/\u0432\u0443\u0437/3 \u043a\u0443\u0440\u0441/BoS"
+			"value" : "/Users/hulio_barbaris/Documents/\u0443\u0447\u0435\u0431\u0430/\u043c\u043e\u0435/\u0432\u0443\u0437/3 \u043a\u0443\u0440\u0441/BoS/labs"
 		},
 		{
 			"name" : "CMAKE_ADDR2LINE",
@@ -91,7 +91,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "/Users/hulio_barbaris/Documents/\u0443\u0447\u0435\u0431\u0430/\u043c\u043e\u0435/\u0432\u0443\u0437/3 \u043a\u0443\u0440\u0441/BoS/cmake-build-debug"
+			"value" : "/Users/hulio_barbaris/Documents/\u0443\u0447\u0435\u0431\u0430/\u043c\u043e\u0435/\u0432\u0443\u0437/3 \u043a\u0443\u0440\u0441/BoS/labs/cmake-build-debug"
 		},
 		{
 			"name" : "CMAKE_CACHE_MAJOR_VERSION",
@@ -419,7 +419,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "/Users/hulio_barbaris/Documents/\u0443\u0447\u0435\u0431\u0430/\u043c\u043e\u0435/\u0432\u0443\u0437/3 \u043a\u0443\u0440\u0441/BoS/cmake-build-debug/CMakeFiles/pkgRedirects"
+			"value" : "/Users/hulio_barbaris/Documents/\u0443\u0447\u0435\u0431\u0430/\u043c\u043e\u0435/\u0432\u0443\u0437/3 \u043a\u0443\u0440\u0441/BoS/labs/cmake-build-debug/CMakeFiles/pkgRedirects"
 		},
 		{
 			"name" : "CMAKE_GENERATOR",
@@ -479,7 +479,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "/Users/hulio_barbaris/Documents/\u0443\u0447\u0435\u0431\u0430/\u043c\u043e\u0435/\u0432\u0443\u0437/3 \u043a\u0443\u0440\u0441/BoS"
+			"value" : "/Users/hulio_barbaris/Documents/\u0443\u0447\u0435\u0431\u0430/\u043c\u043e\u0435/\u0432\u0443\u0437/3 \u043a\u0443\u0440\u0441/BoS/labs"
 		},
 		{
 			"name" : "CMAKE_INSTALL_NAME_TOOL",
