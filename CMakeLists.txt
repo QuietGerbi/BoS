@@ -3,4 +3,4 @@ project(1_vol C)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(1_vol main.c)
+add_executable(BoS 1_vol/main.c)
