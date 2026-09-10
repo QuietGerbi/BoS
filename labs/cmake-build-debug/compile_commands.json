@@ -1,8 +1,0 @@
-[
-{
-  "directory": "/Users/hulio_barbaris/Documents/учеба/мое/вуз/3 курс/BoS/labs/cmake-build-debug",
-  "command": "/usr/bin/cc   -g -std=gnu11 -arch arm64 -fcolor-diagnostics -o CMakeFiles/BoS.dir/1_vol/main.c.o -c \"/Users/hulio_barbaris/Documents/учеба/мое/вуз/3 курс/BoS/labs/1_vol/main.c\"",
-  "file": "/Users/hulio_barbaris/Documents/учеба/мое/вуз/3 курс/BoS/labs/1_vol/main.c",
-  "output": "CMakeFiles/BoS.dir/1_vol/main.c.o"
-}
-]

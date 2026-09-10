@@ -1,3 +1,0 @@
-/Users/hulio_barbaris/Documents/учеба/мое/вуз/3 курс/BoS/labs/cmake-build-debug/CMakeFiles/BoS.dir
-/Users/hulio_barbaris/Documents/учеба/мое/вуз/3 курс/BoS/labs/cmake-build-debug/CMakeFiles/edit_cache.dir
-/Users/hulio_barbaris/Documents/учеба/мое/вуз/3 курс/BoS/labs/cmake-build-debug/CMakeFiles/rebuild_cache.dir
