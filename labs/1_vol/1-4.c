@@ -10,7 +10,7 @@
 
 void cleanup_handler(void *arg) {
     char *message = (char *)arg;
-    printf("cleanup: freeing message\n");
+    write(STDOUT_FILENO, "cleanup: freeing message\n", 26);
     free(message);
 }
 
@@ -54,14 +54,10 @@ int main() {
         return -1;
     }
 
-    err = pthread_cancel(thread);
-
-    if (err) {
-        printf("main: pthread_cancel() failed: %s\n", strerror(err));
-        return -1;
+    if (pthread_join(thread, &res) != 0) {
+        printf("pthread_join thread failed\n");
+        return 1;
     }
-
-    pthread_join(thread, &res);
 
     if (res == PTHREAD_CANCELED) {
         printf("Thread was canceled\n");
