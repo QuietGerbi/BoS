@@ -103,6 +103,7 @@ int main(void)
     }
 
     printf("main: detached successfully\n");
+    sleep(2);
 
     printf("all checks finished\n");
     return 0;
