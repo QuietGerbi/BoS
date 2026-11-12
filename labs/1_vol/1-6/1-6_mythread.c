@@ -26,7 +26,7 @@ struct mythread_struct {
 static mythread_t detached_list;
 static volatile int list_lock;
 
-static void list_acquire(void) { while (__atomic_exchange_n(&list_lock, 1, __ATOMIC_ACQUIRE)) sched_yield(); }
+static void list_acquire(void) { while (__atomic_exchange_n(&list_lock, 1, __ATOMIC_ACQUIRE)); }
 static void list_release(void) { __atomic_store_n(&list_lock, 0, __ATOMIC_RELEASE); }
 
 static void reap_detached(void)
@@ -67,7 +67,6 @@ void mythread_exit(void *retval)
         syscall(SYS_exit_group, 0);   
     self->retval = retval;
     syscall(SYS_exit, 0);             
-    __builtin_unreachable();
 }
 
 void mythread_testcancel(void)
