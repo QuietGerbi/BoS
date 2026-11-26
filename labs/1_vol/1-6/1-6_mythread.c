@@ -58,7 +58,8 @@ void mythread_reap(void)
 int mythread_start(void *p)
 {
     mythread_t t = p;
-    t->retval = t->start_routine(t->arg);
+    void *result = t->start_routine(t->arg);
+    __atomic_store_n(&t->retval, result, __ATOMIC_RELEASE);
     return 0;
 }
 
@@ -120,7 +121,7 @@ int mythread_create(mythread_t *thread, void *(*start_routine)(void *), void *ar
 
 int  mythread_join(mythread_t thread, void **retval)
 {
-    if (thread == NULL || thread->detached) 
+    if (thread == NULL || __atomic_load_n(&thread->detached, __ATOMIC_RELAXED)) 
     {
         return EINVAL;
     }
@@ -145,7 +146,7 @@ int  mythread_join(mythread_t thread, void **retval)
 
     if (retval)
     {
-        *retval = thread->retval;
+        *retval = __atomic_load_n(&thread->retval, __ATOMIC_ACQUIRE);
     }
     
     munmap(thread->stack_base, STACK_SIZE);
@@ -155,7 +156,7 @@ int  mythread_join(mythread_t thread, void **retval)
 
 int mythread_detach(mythread_t thread)
 {
-    if (thread == NULL || thread->joined) 
+    if (thread == NULL ||  __atomic_load_n(&thread->joined, __ATOMIC_RELAXED)) 
     {
         return EINVAL;
     }
@@ -176,6 +177,7 @@ int  mythread_cancel(mythread_t thread)
     }
 
     __atomic_store_n(&thread->cancel_requested, 1, __ATOMIC_RELAXED);
+
     return 0;
 }
 
@@ -195,7 +197,7 @@ int mythread_testcancel(mythread_t thread)
 
     if (__atomic_load_n(&thread->cancel_requested, __ATOMIC_RELAXED))
     {
-        thread->retval = MYTHREAD_CANCELED;
+        __atomic_store_n(&thread->retval, MYTHREAD_CANCELED, __ATOMIC_RELEASE);
         syscall(SYS_exit, 0);
     }
 
