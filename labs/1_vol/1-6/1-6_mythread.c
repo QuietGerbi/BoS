@@ -9,165 +9,195 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#define STACK_SIZE ((size_t)1 << 20)  
+#define STACK_SIZE ((size_t)1 << 20)
 #define GUARD_SIZE 4096
 
-struct mythread_struct {
-    volatile int tid;            
-    volatile int cancel_requested;
-    volatile int joined;
+struct mythread_struct
+{
+    pid_t tid;
     void *(*start_routine)(void *);
     void *arg;
     void *retval;
-    void *stack_base;            
-    struct mythread_struct *next; 
+    void *stack_base;
+    int joined;
+    int detached;
+    int cancel_requested;
+    struct mythread_struct *next;
 };
 
 static mythread_t detached_list;
-static volatile int list_lock;
 
-static void list_acquire(void) { while (__atomic_exchange_n(&list_lock, 1, __ATOMIC_ACQUIRE)); }
-static void list_release(void) { __atomic_store_n(&list_lock, 0, __ATOMIC_RELEASE); }
-
-static void reap_detached(void)
+static void mylist_push(mythread_t thread)
 {
-    list_acquire();
-    mythread_t *pp = &detached_list;
-    while (*pp) {
-        mythread_t t = *pp;
-        if (__atomic_load_n(&t->tid, __ATOMIC_ACQUIRE) == 0) {
-            *pp = t->next;
-            munmap(t->stack_base, STACK_SIZE);
-        } else {
-            pp = &t->next;
-        }
+    mythread_t head = __atomic_load_n(&detached_list, __ATOMIC_RELAXED);
+
+    do 
+    {
+        thread->next = head;
+    } 
+    while (!__atomic_compare_exchange_n(&detached_list, &head, thread, 1, __ATOMIC_RELEASE, __ATOMIC_RELAXED));
+}
+
+void mythread_reap(void)
+{
+    mythread_t thread = __atomic_exchange_n(&detached_list, NULL, __ATOMIC_ACQUIRE);
+
+    while (thread)
+    {
+        mythread_t next = thread->next;              
+
+        if (__atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE) == 0)
+            munmap(thread->stack_base, STACK_SIZE);     
+        else
+            mylist_push(thread);                         
+
+        thread = next;
     }
-    list_release();
 }
 
-static pid_t my_gettid(void) { return (pid_t)syscall(SYS_gettid); }
-
-static int is_main_thread(void) { return my_gettid() == getpid(); }
-
-mythread_t mythread_self(void)
-{
-    if (is_main_thread())
-        return NULL;
-    char probe;
-    uintptr_t sp = (uintptr_t)&probe;
-    uintptr_t base = sp & ~((uintptr_t)STACK_SIZE - 1);
-    size_t sz = (sizeof(struct mythread_struct) + 63) & ~(size_t)63;
-    return (mythread_t)(base + STACK_SIZE - sz);
-}
-
-void mythread_exit(void *retval)
-{
-    mythread_t self = mythread_self();
-    if (self == NULL)
-        syscall(SYS_exit_group, 0);   
-    self->retval = retval;
-    syscall(SYS_exit, 0);             
-}
-
-void mythread_testcancel(void)
-{
-    mythread_t self = mythread_self();
-    if (self && __atomic_load_n(&self->cancel_requested, __ATOMIC_ACQUIRE))
-        mythread_exit(MYTHREAD_CANCELED);
-}
-
-static int thread_start(void *p)
+int mythread_start(void *p)
 {
     mythread_t t = p;
     t->retval = t->start_routine(t->arg);
-    return 0;                         
+    return 0;
 }
 
 int mythread_create(mythread_t *thread, void *(*start_routine)(void *), void *arg)
 {
-    if (!thread || !start_routine)
+    if (thread == NULL || start_routine == NULL)
+    {
         return EINVAL;
+    }
 
-    reap_detached();
+    mythread_reap();
 
-    size_t total = 2 * STACK_SIZE;
-    void *raw = mmap(NULL, total, PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
-    if (raw == MAP_FAILED)
+    void *stack_base = mmap(NULL, STACK_SIZE, PROT_READ | PROT_WRITE,
+                            MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+
+    if (stack_base == MAP_FAILED)
+    {
         return errno;
+    }
 
-    uintptr_t aligned = ((uintptr_t)raw + STACK_SIZE - 1) & ~((uintptr_t)STACK_SIZE - 1);
-    if (aligned > (uintptr_t)raw)
-        munmap(raw, aligned - (uintptr_t)raw);
-    uintptr_t tail = aligned + STACK_SIZE;
-    uintptr_t raw_end = (uintptr_t)raw + total;
-    if (raw_end > tail)
-        munmap((void *)tail, raw_end - tail);
-    mprotect((void *)aligned, GUARD_SIZE, PROT_NONE);
-
-    size_t sz = (sizeof(struct mythread_struct) + 63) & ~(size_t)63;
-    mythread_t t = (mythread_t)(aligned + STACK_SIZE - sz);
-    t->tid = 0;
-    t->cancel_requested = 0;
-    t->joined = 0;
-    t->next = NULL;
-    t->start_routine = start_routine;
-    t->arg = arg;
-    t->retval = NULL;
-    t->stack_base = (void *)aligned;
-
-    int flags = CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD |
-                CLONE_SYSVSEM | CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID;
-
-    int tid = clone(thread_start, (void *)t, flags, t, (pid_t *)&t->tid, NULL, (pid_t *)&t->tid);
-    if (tid == -1) {
-        int err = errno;
-        munmap((void *)aligned, STACK_SIZE);
+    if (mprotect(stack_base, GUARD_SIZE, PROT_NONE) != 0)
+    {
+        int err = errno; 
+        munmap(stack_base, STACK_SIZE);
         return err;
     }
-    *thread = t;
+
+    uintptr_t stack_top = (uintptr_t)stack_base + STACK_SIZE;
+
+    mythread_t mythread = (mythread_t)(stack_top - sizeof(struct mythread_struct));
+
+    mythread->tid = 0;
+    mythread->start_routine = start_routine;
+    mythread->arg = arg;
+    mythread->retval = NULL;
+    mythread->stack_base = stack_base;
+    mythread->joined = 0;
+    mythread->detached = 0;
+    mythread->cancel_requested = 0;
+    mythread->next = NULL;
+
+    int clone_flags = CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD |
+                      CLONE_SYSVSEM | CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID;
+
+    int tid = clone(mythread_start, (void *)mythread, clone_flags, mythread, 
+        (pid_t *)&mythread->tid, NULL, (pid_t *)&mythread->tid);
+
+    if (tid == -1) 
+    {
+        int err = errno;
+        munmap(stack_base, STACK_SIZE);
+        return err;
+    }
+
+    *thread = mythread;
+
     return 0;
 }
 
-int mythread_join(mythread_t t, void **retval)
+int  mythread_join(mythread_t thread, void **retval)
 {
-    if (!t)
+    if (thread == NULL || thread->detached) 
+    {
         return EINVAL;
-    if (t == mythread_self())
+    }
+
+    pid_t current_tid = (pid_t)syscall(SYS_gettid);
+
+    if (current_tid == __atomic_load_n(&thread->tid, __ATOMIC_RELAXED))
+    {
         return EDEADLK;
-    if (__atomic_exchange_n(&t->joined, 1, __ATOMIC_ACQ_REL))
-        return EINVAL;               
+    }
+
+    if (__atomic_exchange_n(&thread->joined, 1, __ATOMIC_ACQ_REL) != 0)
+    {
+        return EINVAL;
+    }
 
     int tid;
-    while ((tid = __atomic_load_n(&t->tid, __ATOMIC_ACQUIRE)) != 0)
-        syscall(SYS_futex, &t->tid, FUTEX_WAIT, tid, NULL, NULL, 0);
+    while ((tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE)) != 0)
+    {
+        syscall(SYS_futex, &thread->tid, FUTEX_WAIT, tid, NULL, NULL, 0);
+    }
 
     if (retval)
-        *retval = t->retval;
-    munmap(t->stack_base, STACK_SIZE);
+    {
+        *retval = thread->retval;
+    }
+    
+    munmap(thread->stack_base, STACK_SIZE);
+
     return 0;
 }
 
-int mythread_detach(mythread_t t)
+int mythread_detach(mythread_t thread)
 {
-    if (!t)
+    if (thread == NULL || thread->joined) 
+    {
         return EINVAL;
-    if (__atomic_exchange_n(&t->joined, 1, __ATOMIC_ACQ_REL))
-        return EINVAL;                
+    }
 
-    list_acquire();
-    t->next = detached_list;
-    detached_list = t;
-    list_release();
+    if (__atomic_exchange_n(&thread->detached, 1, __ATOMIC_ACQ_REL))
+        return EINVAL;  
 
-    reap_detached();
+    mylist_push(thread);
+
     return 0;
 }
 
-int mythread_cancel(mythread_t t)
+int  mythread_cancel(mythread_t thread)
 {
-    if (!t)
+    if (thread == NULL) 
+    {
         return EINVAL;
-    __atomic_store_n(&t->cancel_requested, 1, __ATOMIC_RELEASE);
+    }
+
+    __atomic_store_n(&thread->cancel_requested, 1, __ATOMIC_RELAXED);
+    return 0;
+}
+
+int mythread_testcancel(mythread_t thread)
+{
+    if (thread == NULL)
+    {
+        return EINVAL;
+    }
+
+    pid_t current_tid = (pid_t)syscall(SYS_gettid);
+
+    if (current_tid != __atomic_load_n(&thread->tid, __ATOMIC_RELAXED))
+    {
+        return EINVAL;
+    }
+
+    if (__atomic_load_n(&thread->cancel_requested, __ATOMIC_RELAXED))
+    {
+        thread->retval = MYTHREAD_CANCELED;
+        syscall(SYS_exit, 0);
+    }
+
     return 0;
 }

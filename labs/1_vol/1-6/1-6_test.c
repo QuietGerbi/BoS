@@ -1,34 +1,30 @@
 #define _GNU_SOURCE
 #include "1-6_mythread.h"
 
-#include <errno.h>
 #include <sched.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
 int answer = 69;
 
-static void *exit_worker(void *arg)
-{
-    mythread_t self = mythread_self();
+static void *joined_worker(void *arg) {
+    (void)arg;
 
-    printf("exit_worker: self=%p, returning through mythread_exit()\n",
-           (void *)self);
+    printf("some_worker: hi, i wanna %d\n", *(int *)arg);
+    printf("my tid is %d\n", gettid());
 
-    mythread_exit(arg);
-    return NULL;
+    return arg;
 }
 
-static void *cancel_worker(void *arg)
+void *cancel_worker(void *arg)
 {
-    (void)arg;
+    mythread_t *self = arg;
 
     printf("cancel_worker: started, waiting for cancellation\n");
 
     while (1) {
-        mythread_testcancel();
+        mythread_testcancel(*self);
     }
 }
 
@@ -37,7 +33,7 @@ static void *detached_worker(void *arg)
     (void)arg;
 
     printf("detached_worker: started\n");
-    usleep(100000);
+    sleep(2);
     printf("detached_worker: finished\n");
 
     return NULL;
@@ -49,10 +45,7 @@ int main(void)
     mythread_t thread;
     void *retval = NULL;
 
-    printf("main: mythread_self() = %p (ожидается NULL)\n",
-           (void *)mythread_self());
-
-    err = mythread_create(&thread, exit_worker, &answer);
+    err = mythread_create(&thread, joined_worker, &answer); // join test
     if (err != 0) {
         fprintf(stderr, "mythread_create: %s\n", strerror(err));
         return 1;
@@ -65,10 +58,10 @@ int main(void)
     }
 
     printf("join result: %s, value=%d\n",
-           retval == &answer ? "OK" : "FAIL",
-           retval == &answer ? *(int *)retval : -1);
+           (int*)retval == &answer ? "OK" : "FAIL",
+           (int*)retval == &answer ? *(int *)retval : -1);
 
-    err = mythread_create(&thread, cancel_worker, NULL);
+    err = mythread_create(&thread, cancel_worker, &thread); // cancel test
     if (err != 0) {
         fprintf(stderr, "mythread_create: %s\n", strerror(err));
         return 1;
@@ -90,7 +83,7 @@ int main(void)
     printf("cancel result: %s\n",
            retval == MYTHREAD_CANCELED ? "OK" : "FAIL");
 
-    err = mythread_create(&thread, detached_worker, NULL);
+    err = mythread_create(&thread, detached_worker, NULL); // detach test
     if (err != 0) {
         fprintf(stderr, "mythread_create: %s\n", strerror(err));
         return 1;
@@ -102,9 +95,10 @@ int main(void)
         return 1;
     }
 
+    sleep(3);
     printf("main: detached successfully\n");
-    sleep(2);
 
+    sleep(3);
     printf("all checks finished\n");
     return 0;
 }
